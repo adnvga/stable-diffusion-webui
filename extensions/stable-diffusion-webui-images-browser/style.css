@@ -1,0 +1,118 @@
+.thumbnails.svelte-1tkea93.svelte-1tkea93 {
+  justify-content: initial;
+}
+
+[id^='image_browser_tab_'] .thumbnails.scroll-hide {
+  justify-content: initial;
+}
+
+div[id^="image_browser_tab"][id$="image_browser_gallery"].hide_loading > .svelte-gjihhp {
+  display: none;
+}
+
+/* hack to fix the alignment of the page index, refresh, and delete buttons*/
+div[id$='_control_image_browser_page_index'] {
+  margin-top: -20px !important;
+  display: grid;
+  justify-content: end;
+}
+button[id$='_control_image_browser_refresh_index']{
+  align-self: center !important;
+  height: 2em !important;
+  cursor: pointer !important;
+}
+button[id$='_image_browser_del_img_btn'] {
+  margin-top: calc(var(--body-text-size) * var(--line-sm));
+}
+
+#tab_image_browser .no-gap-top {
+  margin-top: calc(var(--layout-gap) * -1);
+}
+
+#tab_image_browser .mb-0 {
+  margin-bottom: 0;
+}
+
+#tab_image_browser .text-subdued {
+  color: var(--body-text-color-subdued);
+}
+
+#tab_image_browser button[id$='_control_image_browser_first_page'],
+#tab_image_browser button[id$='_control_image_browser_prev_page'],
+#tab_image_browser button[id$='_control_image_browser_next_page'],
+#tab_image_browser button[id$='_control_image_browser_end_page'] {
+  cursor: pointer !important;
+}
+
+#tab_image_browser div[id$='_control_image_browser_page_index'],
+#tab_image_browser .right-column-panel {
+  margin-top: calc(var(--body-text-size) * var(--line-sm) * -1) !important;
+}
+
+#tab_image_browser .sort-panel button {
+  margin-top: calc(var(--body-text-size) * var(--line-sm));
+  align-self: center;
+}
+
+#tab_image_browser .ranking-filter-input input:disabled{
+  cursor: not-allowed;
+}
+
+/* Fit the image inside the button */
+#tab_image_browser .thumbnail-item > img {
+    object-fit: contain !important;
+}
+#tab_image_browser .thumbnail-lg > img {
+    object-fit: contain !important;
+}
+/*Fit the button around the image
+#tab_image_browser .thumbnail-item {
+    aspect-ratio: auto !important;
+}*/
+
+#tab_image_browser .thumbnails .thumbnail-item:first-child{
+  margin-left: var(--spacing-lg);
+}
+
+#tab_image_browser .thumbnails .thumbnail-item:last-child{
+  margin-right: var(--spacing-lg);
+}
+
+#tab_image_browser .page-index-panel > div {
+  flex-wrap: nowrap;
+  align-self: flex-start;
+}
+
+#tab_image_browser .page-index-panel > div > div {
+  min-width: auto;
+}
+
+#tab_image_browser .refresh-index-panel > div {
+  margin-top: var(--spacing-sm);
+}
+
+#tab_image_browser .gradio-dropdown ul.options li.item {
+  white-space: wrap;
+  word-break: break-all;
+}
+
+#tab_image_browser .gradio-box {
+  padding: 5px !important;
+
+}
+.image_browser_symbol_button {
+    margin-top: var(--text-xxl) !important;
+    padding: 1px !important;
+}
+.image_browser_file_info_formatted {
+  width: 100%;
+}
+.image_browser_file_info_formatted th {
+  display: none;
+}
+.image_browser_file_info_formatted td:first-child {
+  width: 30%;
+}
+.image_browser_file_info_formatted td:not(:first-child) {
+  width: 70%;
+}
