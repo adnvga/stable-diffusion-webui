@@ -16,7 +16,7 @@ from skimage import exposure
 from typing import Any
 
 import modules.sd_hijack
-from modules import devices, prompt_parser, masking, sd_samplers, lowvram, infotext_utils, extra_networks, sd_vae_approx, scripts, sd_samplers_common, sd_unet, errors, rng, profiling
+from modules import devices, prompt_parser, masking, sd_samplers, lowvram, infotext_utils, extra_networks, sd_vae_approx, scripts, sd_samplers_common, sd_unet, errors, rng, profiling, memory_debug
 from modules.rng import slerp # noqa: F401
 from modules.sd_hijack import model_hijack
 from modules.sd_samplers_common import images_tensor_to_samples, decode_first_stage, approximation_indexes
@@ -625,11 +625,18 @@ class DecodedSamples(list):
 def decode_latent_batch(model, batch, target_device=None, check_for_nans=False):
     samples = DecodedSamples()
 
+    memory_debug.reset_peak()
+    memory_debug.snapshot("decode.start", {"latent_batch": batch})
+
     if check_for_nans:
         devices.test_for_nans(batch, "unet")
 
+    def decode_sample(latent):
+        with memory_debug.vae_decode_trace(model):
+            return decode_first_stage(model, latent)[0]
+
     for i in range(batch.shape[0]):
-        sample = decode_first_stage(model, batch[i:i + 1])[0]
+        sample = decode_sample(batch[i:i + 1])
 
         if check_for_nans:
 
@@ -662,12 +669,17 @@ def decode_latent_batch(model, batch, target_device=None, check_for_nans=False):
                 model.first_stage_model.to(devices.dtype_vae)
                 batch = batch.to(devices.dtype_vae)
 
-                sample = decode_first_stage(model, batch[i:i + 1])[0]
+                sample = decode_sample(batch[i:i + 1])
 
         if target_device is not None:
             sample = sample.to(target_device)
 
         samples.append(sample)
+
+        if i == 0 or i == batch.shape[0] - 1:
+            memory_debug.snapshot(f"decode.sample.{i + 1}/{batch.shape[0]}", {"latent": batch[i:i + 1], "decoded": sample})
+
+    memory_debug.snapshot("decode.end", {"latent_batch": batch})
 
     return samples
 

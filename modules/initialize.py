@@ -26,6 +26,9 @@ def imports():
     from modules import paths, timer, import_hook, errors  # noqa: F401
     startup_timer.record("setup paths")
 
+    from modules import sd_vae_tiling
+    sd_vae_tiling.report_configuration()
+
     import ldm.modules.encoders.modules  # noqa: F401
     startup_timer.record("import ldm")
 

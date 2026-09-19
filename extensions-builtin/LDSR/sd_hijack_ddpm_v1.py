@@ -22,6 +22,7 @@ from ldm.modules.distributions.distributions import normal_kl, DiagonalGaussianD
 from ldm.models.autoencoder import VQModelInterface, IdentityFirstStage, AutoencoderKL
 from ldm.modules.diffusionmodules.util import make_beta_schedule, extract_into_tensor, noise_like
 from ldm.models.diffusion.ddim import DDIMSampler
+from modules import sd_vae_tiling
 
 import ldm.models.diffusion.ddpm
 
@@ -710,6 +711,19 @@ class LatentDiffusionV1(DDPMV1):
             z = rearrange(z, 'b h w c -> b c h w').contiguous()
 
         z = 1. / self.scale_factor * z
+
+        split_input_params = getattr(self, "split_input_params", {})
+        tiling_requested = sd_vae_tiling.enabled()
+        is_legacy_vae = isinstance(self.first_stage_model, AutoencoderKL)
+        distributed_vq = split_input_params.get("patch_distributed_vq", False)
+        if tiling_requested:
+            if is_legacy_vae and not distributed_vq:
+                tile_size, overlap, passes = sd_vae_tiling.settings()
+                print(f"[VAE][tiling] active tile={tile_size} overlap={overlap} passes={passes} input={tuple(z.shape)}", flush=True)
+                return sd_vae_tiling.decode_tiled(self.first_stage_model, z, tile_size, overlap, passes)
+
+            model_type = f"{type(self.first_stage_model).__module__}.{type(self.first_stage_model).__name__}"
+            print(f"[VAE][tiling] requested but skipped model={model_type} legacy={is_legacy_vae} patch_distributed_vq={distributed_vq}", flush=True)
 
         if hasattr(self, "split_input_params"):
             if self.split_input_params["patch_distributed_vq"]:
