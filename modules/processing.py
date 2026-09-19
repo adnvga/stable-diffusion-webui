@@ -16,7 +16,7 @@ from skimage import exposure
 from typing import Any
 
 import modules.sd_hijack
-from modules import devices, prompt_parser, masking, sd_samplers, lowvram, infotext_utils, extra_networks, sd_vae_approx, scripts, sd_samplers_common, sd_unet, errors, rng, profiling, memory_debug
+from modules import devices, prompt_parser, masking, sd_samplers, lowvram, infotext_utils, extra_networks, sd_vae_approx, scripts, sd_samplers_common, sd_unet, errors, rng, profiling, memory_debug, sd_vae_tiling
 from modules.rng import slerp # noqa: F401
 from modules.sd_hijack import model_hijack
 from modules.sd_samplers_common import images_tensor_to_samples, decode_first_stage, approximation_indexes
@@ -631,12 +631,12 @@ def decode_latent_batch(model, batch, target_device=None, check_for_nans=False):
     if check_for_nans:
         devices.test_for_nans(batch, "unet")
 
-    def decode_sample(latent):
-        with memory_debug.vae_decode_trace(model):
+    def decode_sample(latent, sample_index):
+        with sd_vae_tiling.decode_context(sample_index + 1, batch.shape[0]), memory_debug.vae_decode_trace(model):
             return decode_first_stage(model, latent)[0]
 
     for i in range(batch.shape[0]):
-        sample = decode_sample(batch[i:i + 1])
+        sample = decode_sample(batch[i:i + 1], i)
 
         if check_for_nans:
 
@@ -669,7 +669,7 @@ def decode_latent_batch(model, batch, target_device=None, check_for_nans=False):
                 model.first_stage_model.to(devices.dtype_vae)
                 batch = batch.to(devices.dtype_vae)
 
-                sample = decode_sample(batch[i:i + 1])
+                sample = decode_sample(batch[i:i + 1], i)
 
         if target_device is not None:
             sample = sample.to(target_device)

@@ -1,5 +1,7 @@
 import itertools
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import torch
 
@@ -8,6 +10,7 @@ _TRUE_VALUES = {"1", "true", "yes", "on"}
 DEFAULT_TILE_SIZE = 64
 DEFAULT_TILE_OVERLAP = 16
 DEFAULT_TILE_PASSES = 3
+_decode_context = ContextVar("vae_tiling_decode_context", default=None)
 
 
 def enabled():
@@ -35,6 +38,55 @@ def report_configuration():
 
     tile_size, overlap, passes = settings()
     print(f"[VAE][tiling] enabled tile={tile_size} overlap={overlap} passes={passes}", flush=True)
+
+
+@contextmanager
+def decode_context(index, total):
+    token = _decode_context.set((index, total))
+    try:
+        yield
+    finally:
+        _decode_context.reset(token)
+
+
+def log_context():
+    context = _decode_context.get()
+    return "" if context is None else f" image={context[0]}/{context[1]}"
+
+
+def _format_gib(value):
+    return f"{value / (1024 ** 3):.3f} GiB"
+
+
+def _start_vram_measurement(samples):
+    if not samples.is_cuda or not torch.cuda.is_available():
+        return None
+
+    device = samples.device
+    torch.cuda.reset_peak_memory_stats(device)
+    return device, torch.cuda.memory_allocated(device), torch.cuda.memory_reserved(device)
+
+
+def _report_vram_measurement(measurement):
+    if measurement is None:
+        return
+
+    device, allocated_start, reserved_start = measurement
+    allocated_peak = torch.cuda.max_memory_allocated(device)
+    reserved_peak = torch.cuda.max_memory_reserved(device)
+    allocated_end = torch.cuda.memory_allocated(device)
+    reserved_end = torch.cuda.memory_reserved(device)
+    print(
+        f"[VAE][tiling][VRAM]{log_context()} device={device} "
+        f"allocated_start={_format_gib(allocated_start)} "
+        f"allocated_peak={_format_gib(allocated_peak)} "
+        f"allocated_delta={_format_gib(max(0, allocated_peak - allocated_start))} "
+        f"allocated_end={_format_gib(allocated_end)} "
+        f"reserved_start={_format_gib(reserved_start)} "
+        f"reserved_peak={_format_gib(reserved_peak)} "
+        f"reserved_end={_format_gib(reserved_end)}",
+        flush=True,
+    )
 
 
 @torch.inference_mode()
@@ -97,6 +149,8 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=16, upscale_a
 
 
 def decode_tiled(first_stage_model, samples, tile_size=None, overlap=None, passes=None):
+    vram_measurement = _start_vram_measurement(samples)
+
     if tile_size is None or overlap is None or passes is None:
         configured_tile_size, configured_overlap, configured_passes = settings()
         tile_size = configured_tile_size if tile_size is None else tile_size
@@ -130,4 +184,6 @@ def decode_tiled(first_stage_model, samples, tile_size=None, overlap=None, passe
         )
         output = tiled_output if output is None else output + tiled_output
 
-    return output / passes
+    result = output / passes
+    _report_vram_measurement(vram_measurement)
+    return result

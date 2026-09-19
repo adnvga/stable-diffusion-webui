@@ -76,6 +76,29 @@ def test_report_configuration_prints_effective_settings(monkeypatch, capsys):
     assert capsys.readouterr().out == "[VAE][tiling] enabled tile=48 overlap=12 passes=2\n"
 
 
+def test_report_vram_measurement_prints_compact_peak(monkeypatch, capsys):
+    gib = 1024 ** 3
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda device: 7.25 * gib)
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda device: 8.5 * gib)
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda device: 6.5 * gib)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda device: 8 * gib)
+
+    sd_vae_tiling._report_vram_measurement((torch.device("cuda:0"), 6 * gib, 7 * gib))
+
+    assert capsys.readouterr().out == (
+        "[VAE][tiling][VRAM] device=cuda:0 allocated_start=6.000 GiB "
+        "allocated_peak=7.250 GiB allocated_delta=1.250 GiB allocated_end=6.500 GiB "
+        "reserved_start=7.000 GiB reserved_peak=8.500 GiB reserved_end=8.000 GiB\n"
+    )
+
+
+def test_decode_context_labels_batch_image_and_resets():
+    with sd_vae_tiling.decode_context(2, 6):
+        assert sd_vae_tiling.log_context() == " image=2/6"
+
+    assert sd_vae_tiling.log_context() == ""
+
+
 def test_sdxl_decode_first_stage_uses_tiling(monkeypatch, capsys):
     import modules.paths  # noqa: F401
     diffusion = importlib.import_module("sgm.models.diffusion")
@@ -90,8 +113,9 @@ def test_sdxl_decode_first_stage_uses_tiling(monkeypatch, capsys):
     model = SimpleNamespace(scale_factor=1.0, disable_first_stage_autocast=True, first_stage_model=vae)
     samples = torch.ones(1, 1, 5, 7)
 
-    output = diffusion.DiffusionEngine.decode_first_stage(model, samples)
+    with sd_vae_tiling.decode_context(2, 6):
+        output = diffusion.DiffusionEngine.decode_first_stage(model, samples)
 
     assert output.shape == (1, 3, 10, 14)
     assert all(shape[-2:] != samples.shape[-2:] for shape in vae.decode_shapes)
-    assert "[VAE][tiling] active tile=3 overlap=1 passes=1 input=(1, 1, 5, 7)" in capsys.readouterr().out
+    assert "[VAE][tiling] active image=2/6 tile=3 overlap=1 passes=1 input=(1, 1, 5, 7)" in capsys.readouterr().out

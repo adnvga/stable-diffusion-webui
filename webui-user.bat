@@ -5,7 +5,6 @@ set GIT=C:\ai\git\bin\git
 
 set COMMANDLINE_ARGS=--models-dir "C:\ai\models" --xformers --no-half-vae --listen
 set COMMANDLINE_ARGS=--models-dir "C:\ai\models" --xformers --no-half-vae
-set COMMANDLINE_ARGS=--models-dir "C:\ai\models" --xformers
 
 set PIP_BUILD_CONSTRAINT=%~dp0build-constraints.txt
 set SD_WEBUI_MEMORY_DEBUG=0

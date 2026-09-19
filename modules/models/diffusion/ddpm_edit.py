@@ -740,11 +740,11 @@ class LatentDiffusion(DDPM):
         if tiling_requested:
             if is_legacy_vae and not distributed_vq:
                 tile_size, overlap, passes = sd_vae_tiling.settings()
-                print(f"[VAE][tiling] active tile={tile_size} overlap={overlap} passes={passes} input={tuple(z.shape)}", flush=True)
+                print(f"[VAE][tiling] active{sd_vae_tiling.log_context()} tile={tile_size} overlap={overlap} passes={passes} input={tuple(z.shape)}", flush=True)
                 return sd_vae_tiling.decode_tiled(self.first_stage_model, z, tile_size, overlap, passes)
 
             model_type = f"{type(self.first_stage_model).__module__}.{type(self.first_stage_model).__name__}"
-            print(f"[VAE][tiling] requested but skipped model={model_type} legacy={is_legacy_vae} patch_distributed_vq={distributed_vq}", flush=True)
+            print(f"[VAE][tiling] requested but skipped{sd_vae_tiling.log_context()} model={model_type} legacy={is_legacy_vae} patch_distributed_vq={distributed_vq}", flush=True)
 
         if hasattr(self, "split_input_params"):
             if self.split_input_params["patch_distributed_vq"]:
