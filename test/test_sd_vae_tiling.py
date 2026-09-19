@@ -70,10 +70,45 @@ def test_report_configuration_prints_effective_settings(monkeypatch, capsys):
     monkeypatch.setenv("SD_WEBUI_VAE_TILE_SIZE", "48")
     monkeypatch.setenv("SD_WEBUI_VAE_TILE_OVERLAP", "12")
     monkeypatch.setenv("SD_WEBUI_VAE_TILE_PASSES", "2")
+    monkeypatch.setenv("SD_WEBUI_VAE_CLEAR_CACHE", "1")
 
     sd_vae_tiling.report_configuration()
 
-    assert capsys.readouterr().out == "[VAE][tiling] enabled tile=48 overlap=12 passes=2\n"
+    assert capsys.readouterr().out == "[VAE][tiling] enabled tile=48 overlap=12 passes=2 clear_cache=on\n"
+
+
+def test_trim_cuda_cache_reports_released_memory(monkeypatch, capsys):
+    gib = 1024 ** 3
+    samples = SimpleNamespace(is_cuda=True, device=torch.device("cuda:0"))
+    reserved = iter([10 * gib, 7 * gib])
+    allocated = iter([6 * gib, 6 * gib])
+    timer = iter([1.0, 1.0125])
+    empty_cache_calls = []
+    monkeypatch.setenv("SD_WEBUI_VAE_TILING", "1")
+    monkeypatch.setenv("SD_WEBUI_VAE_CLEAR_CACHE", "1")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda device: next(reserved))
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda device: next(allocated))
+    monkeypatch.setattr(torch.cuda, "empty_cache", lambda: empty_cache_calls.append(True))
+    monkeypatch.setattr(sd_vae_tiling.time, "perf_counter", lambda: next(timer))
+
+    sd_vae_tiling.trim_cuda_cache(samples, "before", 6)
+
+    assert empty_cache_calls == [True]
+    assert capsys.readouterr().out == (
+        "[VAE][tiling][CACHE] phase=before batch=6 device=cuda:0 "
+        "reserved_before=10.000 GiB cached_before=4.000 GiB "
+        "reserved_after=7.000 GiB released=3.000 GiB "
+        "cached_after=1.000 GiB allocated=6.000 GiB elapsed=12.5 ms\n"
+    )
+
+
+def test_trim_cuda_cache_is_disabled_by_default(monkeypatch):
+    samples = SimpleNamespace(is_cuda=True, device=torch.device("cuda:0"))
+    monkeypatch.delenv("SD_WEBUI_VAE_CLEAR_CACHE", raising=False)
+    monkeypatch.setattr(torch.cuda, "empty_cache", lambda: pytest.fail("empty_cache should not be called"))
+
+    sd_vae_tiling.trim_cuda_cache(samples, "before", 1)
 
 
 def test_report_vram_measurement_prints_compact_peak(monkeypatch, capsys):

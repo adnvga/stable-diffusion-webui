@@ -625,6 +625,7 @@ class DecodedSamples(list):
 def decode_latent_batch(model, batch, target_device=None, check_for_nans=False):
     samples = DecodedSamples()
 
+    sd_vae_tiling.trim_cuda_cache(batch, "before", batch.shape[0])
     memory_debug.reset_peak()
     memory_debug.snapshot("decode.start", {"latent_batch": batch})
 
@@ -680,6 +681,7 @@ def decode_latent_batch(model, batch, target_device=None, check_for_nans=False):
             memory_debug.snapshot(f"decode.sample.{i + 1}/{batch.shape[0]}", {"latent": batch[i:i + 1], "decoded": sample})
 
     memory_debug.snapshot("decode.end", {"latent_batch": batch})
+    sd_vae_tiling.trim_cuda_cache(batch, "after", batch.shape[0])
 
     return samples
 

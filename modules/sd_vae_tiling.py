@@ -1,5 +1,6 @@
 import itertools
 import os
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -15,6 +16,10 @@ _decode_context = ContextVar("vae_tiling_decode_context", default=None)
 
 def enabled():
     return os.environ.get("SD_WEBUI_VAE_TILING", "").lower() in _TRUE_VALUES
+
+
+def cache_cleanup_enabled():
+    return enabled() and os.environ.get("SD_WEBUI_VAE_CLEAR_CACHE", "").lower() in _TRUE_VALUES
 
 
 def _env_int(name, default):
@@ -37,7 +42,8 @@ def report_configuration():
         return
 
     tile_size, overlap, passes = settings()
-    print(f"[VAE][tiling] enabled tile={tile_size} overlap={overlap} passes={passes}", flush=True)
+    clear_cache = "on" if cache_cleanup_enabled() else "off"
+    print(f"[VAE][tiling] enabled tile={tile_size} overlap={overlap} passes={passes} clear_cache={clear_cache}", flush=True)
 
 
 @contextmanager
@@ -56,6 +62,30 @@ def log_context():
 
 def _format_gib(value):
     return f"{value / (1024 ** 3):.3f} GiB"
+
+
+def trim_cuda_cache(samples, phase, batch_size):
+    if not cache_cleanup_enabled() or not samples.is_cuda or not torch.cuda.is_available():
+        return
+
+    device = samples.device
+    allocated_before = torch.cuda.memory_allocated(device)
+    reserved_before = torch.cuda.memory_reserved(device)
+    started = time.perf_counter()
+    torch.cuda.empty_cache()
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    allocated_after = torch.cuda.memory_allocated(device)
+    reserved_after = torch.cuda.memory_reserved(device)
+    print(
+        f"[VAE][tiling][CACHE] phase={phase} batch={batch_size} device={device} "
+        f"reserved_before={_format_gib(reserved_before)} "
+        f"cached_before={_format_gib(max(0, reserved_before - allocated_before))} "
+        f"reserved_after={_format_gib(reserved_after)} "
+        f"released={_format_gib(max(0, reserved_before - reserved_after))} "
+        f"cached_after={_format_gib(max(0, reserved_after - allocated_after))} "
+        f"allocated={_format_gib(allocated_after)} elapsed={elapsed_ms:.1f} ms",
+        flush=True,
+    )
 
 
 def _start_vram_measurement(samples):

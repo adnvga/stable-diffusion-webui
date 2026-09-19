@@ -9,5 +9,6 @@ set COMMANDLINE_ARGS=--models-dir "C:\ai\models" --xformers --no-half-vae
 set PIP_BUILD_CONSTRAINT=%~dp0build-constraints.txt
 set SD_WEBUI_MEMORY_DEBUG=0
 set SD_WEBUI_VAE_TILING=1
+set SD_WEBUI_VAE_CLEAR_CACHE=1
 
 call webui.bat
