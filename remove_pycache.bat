@@ -14,4 +14,3 @@ for /d /r "%~dp0" %%D in (__pycache__) do (
 
 echo.
 echo Limpieza terminada.
-pause
