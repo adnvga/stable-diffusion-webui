@@ -154,3 +154,42 @@ def test_sdxl_decode_first_stage_uses_tiling(monkeypatch, capsys):
     assert output.shape == (1, 3, 10, 14)
     assert all(shape[-2:] != samples.shape[-2:] for shape in vae.decode_shapes)
     assert "[VAE][tiling] active image=2/6 tile=3 overlap=1 passes=1 input=(1, 1, 5, 7)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("environment_value", [None, "0"])
+def test_disabled_features_preserve_original_sdxl_decode(monkeypatch, capsys, environment_value):
+    import modules.paths  # noqa: F401
+    monkeypatch.setenv("GIT_PYTHON_GIT_EXECUTABLE", r"C:\ai\git\bin\git.exe")
+    monkeypatch.setenv("GIT_PYTHON_REFRESH", "quiet")
+    memory_debug = importlib.import_module("modules.memory_debug")
+    diffusion = importlib.import_module("sgm.models.diffusion")
+    legacy_ddpm = importlib.import_module("ldm.models.diffusion.ddpm")
+
+    for name in ["SD_WEBUI_VAE_TILING", "SD_WEBUI_MEMORY_DEBUG", "SD_WEBUI_VAE_CLEAR_CACHE"]:
+        if environment_value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, environment_value)
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "empty_cache", lambda: pytest.fail("empty_cache should not be called"))
+    monkeypatch.setattr(torch.cuda, "reset_peak_memory_stats", lambda: pytest.fail("peak stats should not be reset"))
+
+    sdxl_vae = FakeVAE()
+    sdxl_model = SimpleNamespace(scale_factor=1.0, disable_first_stage_autocast=True, first_stage_model=sdxl_vae)
+    legacy_vae = FakeVAE()
+    legacy_model = SimpleNamespace(scale_factor=1.0, first_stage_model=legacy_vae)
+    samples = torch.ones(1, 1, 5, 7)
+
+    sd_vae_tiling.report_configuration()
+    sd_vae_tiling.trim_cuda_cache(samples, "before", 1)
+    memory_debug.reset_peak()
+    memory_debug.snapshot("disabled")
+    with memory_debug.vae_decode_trace(sdxl_model):
+        sdxl_output = diffusion.DiffusionEngine.decode_first_stage(sdxl_model, samples)
+        legacy_output = legacy_ddpm.LatentDiffusion.decode_first_stage(legacy_model, samples)
+
+    assert sdxl_output.shape == legacy_output.shape == (1, 3, 10, 14)
+    assert sdxl_vae.decode_calls == legacy_vae.decode_calls == 1
+    assert sdxl_vae.decode_shapes == legacy_vae.decode_shapes == [(1, 1, 5, 7)]
+    assert capsys.readouterr().out == ""
