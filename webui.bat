@@ -70,16 +70,16 @@ set ACCELERATE="%VENV_DIR%\Scripts\accelerate.exe"
 if EXIST %ACCELERATE% goto :accelerate_launch
 
 :launch
-%PYTHON% launch.py %*
+%PYTHON% -W ignore::FutureWarning launch.py %*
 if EXIST tmp/restart goto :skip_venv
-pause
+rem pause
 exit /b
 
 :accelerate_launch
 echo Accelerating
 %ACCELERATE% launch --num_cpu_threads_per_process=6 launch.py
 if EXIST tmp/restart goto :skip_venv
-pause
+rem pause
 exit /b
 
 :show_stdout_stderr
@@ -104,4 +104,4 @@ type tmp\stderr.txt
 
 echo.
 echo Launch unsuccessful. Exiting.
-pause
+rem pause
